@@ -62,7 +62,8 @@ class LibraryRepository(private val db: RetroTvDatabase) {
                                 filePath = path,
                                 sortOrder = episodeIndex,
                                 lastPositionMs = lastPositionMs,
-                                watched = watched
+                                watched = watched,
+                                durationMs = episode.durationMs
                             )
                         )
                     }
