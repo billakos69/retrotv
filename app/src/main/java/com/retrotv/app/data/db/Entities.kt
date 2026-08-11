@@ -52,7 +52,8 @@ data class EpisodeEntity(
     val filePath: String,
     val sortOrder: Int = 0,
     val lastPositionMs: Long = 0,
-    val watched: Boolean = false
+    val watched: Boolean = false,
+    val durationMs: Long = 0
 )
 
 @Entity(tableName = "ads")
