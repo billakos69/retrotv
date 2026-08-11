@@ -4,7 +4,8 @@ import java.io.File
 
 data class Episode(
     val title: String,
-    val file: File
+    val file: File,
+    val durationMs: Long = 0
 )
 
 data class Series(
