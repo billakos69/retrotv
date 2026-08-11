@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 
 private enum class AppScreen {
-    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS
+    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY
 }
 
 class MainActivity : ComponentActivity() {
@@ -104,8 +104,10 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
 
         AppScreen.MAIN_MENU -> MainMenuScreen(
             onItemSelected = { item ->
-                if (item == MainMenuItem.SETTINGS) {
-                    screen = AppScreen.SETTINGS
+                when (item) {
+                    MainMenuItem.SETTINGS -> screen = AppScreen.SETTINGS
+                    MainMenuItem.LIBRARY -> screen = AppScreen.LIBRARY
+                    else -> { /* not wired up yet */ }
                 }
             }
         )
@@ -113,6 +115,11 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
         AppScreen.SETTINGS -> SettingsScreen(
             currentFolderPath = folderPath ?: "Not set",
             onChangeFolder = { screen = AppScreen.PICKING_FOLDER }
+        )
+
+        AppScreen.LIBRARY -> LibraryScreen(
+            rootPath = folderPath ?: "",
+            onBack = { screen = AppScreen.MAIN_MENU }
         )
     }
 }
