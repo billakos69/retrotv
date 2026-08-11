@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         AdEntity::class,
         JingleEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class RetroTvDatabase : RoomDatabase() {
@@ -32,7 +32,13 @@ abstract class RetroTvDatabase : RoomDatabase() {
                     context.applicationContext,
                     RetroTvDatabase::class.java,
                     "retrotv.db"
-                ).build().also { INSTANCE = it }
+                )
+                    // Schema is still evolving during development, and all of this
+                    // data is just a cache of what's on disk (RESCAN LIBRARY
+                    // rebuilds it) apart from watch progress, so destructively
+                    // wiping on a version bump is an acceptable tradeoff for now.
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
             }
         }
     }
