@@ -152,6 +152,15 @@ private fun ChannelRow(
 ) {
     var confirmingDelete by remember(channel.id) { mutableStateOf(false) }
 
+    val onDeleteButtonClick: () -> Unit = {
+        if (confirmingDelete) {
+            confirmingDelete = false
+            onDelete()
+        } else {
+            confirmingDelete = true
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -181,11 +190,39 @@ private fun ChannelRow(
                 }
             }
             RetroButton(
-                onClick = {
-                    if (confirmingDelete) {
-                        confirmingDelete = false
-                        onDelete()
-                    } else {
-                        confirmingDelete = true
-                    }
-                },
+                onClick = onDeleteButtonClick,
+                accentColor = if (confirmingDelete) TvAccentAmber else TvAccentGreen
+            ) {
+                Text(
+                    text = if (confirmingDelete) "CONFIRM?" else "DELETE",
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChannelLogo(logoPath: String?) {
+    var bitmap by remember(logoPath) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(logoPath) {
+        bitmap = if (logoPath != null) {
+            withContext(Dispatchers.IO) {
+                runCatching { BitmapFactory.decodeFile(logoPath)?.asImageBitmap() }.getOrNull()
+            }
+        } else null
+    }
+
+    Box(
+        modifier = Modifier.size(48.dp).background(TvBackground),
+        contentAlignment = Alignment.Center
+    ) {
+        val bmp = bitmap
+        if (bmp != null) {
+            Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize())
+        } else {
+            Text(text = "?", color = TvAccentAmber, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
