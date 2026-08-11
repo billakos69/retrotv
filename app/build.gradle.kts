@@ -12,8 +12,8 @@ android {
         applicationId = "com.retrotv.app"
         minSdk = 30
         targetSdk = 36
-        versionCode = 3
-        versionName = "0.2.1-stage2-fix"
+        versionCode = 4
+        versionName = "0.3.0-ui-polish"
     }
 
     buildTypes {
@@ -48,18 +48,16 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.4")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
 
-    // Compose
     implementation(platform("androidx.compose:compose-bom:2024.06.00"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.animation:animation")
 
-    // Compose for TV
     implementation("androidx.tv:tv-foundation:1.0.0")
     implementation("androidx.tv:tv-material:1.0.0")
 
-    // Storage Access Framework helpers + persisted preferences
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
 
