@@ -16,8 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.retrotv.app.data.LibraryRepository
 import com.retrotv.app.data.LibraryScanner
 import com.retrotv.app.data.SettingsRepository
+import com.retrotv.app.data.db.RetroTvDatabase
 import com.retrotv.app.data.model.Episode
 import com.retrotv.app.ui.*
 import com.retrotv.app.ui.theme.RetroTVTheme
@@ -31,27 +33,35 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 private enum class AppScreen {
-    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY, PLAYER
+    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY, PLAYER, CHANNELS
 }
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var settingsRepository: SettingsRepository
+    private lateinit var libraryRepository: LibraryRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settingsRepository = SettingsRepository(applicationContext)
+        libraryRepository = LibraryRepository(RetroTvDatabase.getInstance(applicationContext))
         enableEdgeToEdge()
         setContent {
             RetroTVTheme {
-                RetroTVApp(settingsRepository = settingsRepository)
+                RetroTVApp(
+                    settingsRepository = settingsRepository,
+                    libraryRepository = libraryRepository
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RetroTVApp(settingsRepository: SettingsRepository) {
+private fun RetroTVApp(
+    settingsRepository: SettingsRepository,
+    libraryRepository: LibraryRepository
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -83,7 +93,6 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
                 screen = AppScreen.PLAYER
             }
             // else: no playable content found yet — stays on the main menu.
-            // TODO once we have a message/toast pattern, surface this to the user.
         }
     }
 
@@ -129,6 +138,7 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
                 when (item) {
                     MainMenuItem.SETTINGS -> screen = AppScreen.SETTINGS
                     MainMenuItem.LIBRARY -> screen = AppScreen.LIBRARY
+                    MainMenuItem.CHANNELS -> screen = AppScreen.CHANNELS
                     MainMenuItem.WATCH_TV -> startWatchingFirstAvailableChannel()
                     else -> { /* not wired up yet */ }
                 }
@@ -141,6 +151,12 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
         )
 
         AppScreen.LIBRARY -> LibraryScreen(
+            rootPath = folderPath ?: "",
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+
+        AppScreen.CHANNELS -> ChannelsScreen(
+            repository = libraryRepository,
             rootPath = folderPath ?: "",
             onBack = { screen = AppScreen.MAIN_MENU }
         )
