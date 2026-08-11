@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -106,7 +106,34 @@ fun ChannelsScreen(
                     )
                 } else {
                     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(channels, key = { it.id }) { channel -> ChannelRow(channel) }
+                        itemsIndexed(channels) { index, channel ->
+                            ChannelRow(
+                                channel = channel,
+                                isFirst = index == 0,
+                                isLast = index == channels.lastIndex,
+                                onMoveUp = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            repository.moveChannel(channels, channel, -1)
+                                        }
+                                    }
+                                },
+                                onMoveDown = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            repository.moveChannel(channels, channel, +1)
+                                        }
+                                    }
+                                },
+                                onDelete = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) {
+                                            repository.deleteChannel(channel)
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -115,7 +142,16 @@ fun ChannelsScreen(
 }
 
 @Composable
-private fun ChannelRow(channel: ChannelEntity) {
+private fun ChannelRow(
+    channel: ChannelEntity,
+    isFirst: Boolean,
+    isLast: Boolean,
+    onMoveUp: () -> Unit,
+    onMoveDown: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var confirmingDelete by remember(channel.id) { mutableStateOf(false) }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -124,36 +160,32 @@ private fun ChannelRow(channel: ChannelEntity) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(
-            text = channel.name,
-            style = MaterialTheme.typography.titleMedium,
-            color = TvTextPrimary
-        )
-        ChannelLogo(logoPath = channel.logoPath)
-    }
-}
-
-@Composable
-private fun ChannelLogo(logoPath: String?) {
-    var bitmap by remember(logoPath) { mutableStateOf<ImageBitmap?>(null) }
-
-    LaunchedEffect(logoPath) {
-        bitmap = if (logoPath != null) {
-            withContext(Dispatchers.IO) {
-                runCatching { BitmapFactory.decodeFile(logoPath)?.asImageBitmap() }.getOrNull()
-            }
-        } else null
-    }
-
-    Box(
-        modifier = Modifier.size(48.dp).background(TvBackground),
-        contentAlignment = Alignment.Center
-    ) {
-        val bmp = bitmap
-        if (bmp != null) {
-            Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize())
-        } else {
-            Text(text = "?", color = TvAccentAmber, style = MaterialTheme.typography.labelLarge)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            ChannelLogo(logoPath = channel.logoPath)
+            Text(
+                text = channel.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = TvTextPrimary
+            )
         }
-    }
-}
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (!isFirst) {
+                RetroButton(onClick = onMoveUp) {
+                    Text(text = "UP", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            if (!isLast) {
+                RetroButton(onClick = onMoveDown) {
+                    Text(text = "DOWN", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+            RetroButton(
+                onClick = {
+                    if (confirmingDelete) {
+                        confirmingDelete = false
+                        onDelete()
+                    } else {
+                        confirmingDelete = true
+                    }
+                },
