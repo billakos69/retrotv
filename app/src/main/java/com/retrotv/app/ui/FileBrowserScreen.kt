@@ -1,22 +1,29 @@
 package com.retrotv.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.retrotv.app.ui.components.RetroButton
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
 import com.retrotv.app.ui.theme.TvTextSecondary
@@ -30,7 +37,6 @@ fun FileBrowserScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     val roots = remember { StorageUtils.getStorageRoots(context) }
 
-    // currentDir == null means we're at the "pick a storage root" level
     var currentDir by remember { mutableStateOf<File?>(null) }
 
     val entries: List<File> = remember(currentDir) {
@@ -56,11 +62,15 @@ fun FileBrowserScreen(
                 modifier = Modifier.padding(top = 8.dp, bottom = 24.dp)
             )
 
-            Row(modifier = Modifier.padding(bottom = 16.dp)) {
-                if (currentDir != null) {
+            if (currentDir != null) {
+                Row(modifier = Modifier.padding(bottom = 16.dp)) {
                     NavButton(text = "◀ BACK") {
                         val parent = currentDir!!.parentFile
-                        currentDir = if (parent != null && roots.any { it.second.absolutePath.startsWith(parent.absolutePath) || parent.absolutePath.startsWith(it.second.absolutePath) }) {
+                        currentDir = if (parent != null && roots.any {
+                                it.second.absolutePath.startsWith(parent.absolutePath) ||
+                                    parent.absolutePath.startsWith(it.second.absolutePath)
+                            }
+                        ) {
                             parent
                         } else {
                             null
@@ -73,7 +83,10 @@ fun FileBrowserScreen(
                 }
             }
 
-            LazyColumn(modifier = Modifier.weight(1f)) {
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 if (currentDir == null) {
                     items(roots) { (label, dir) ->
                         FolderRow(name = label, onClick = { currentDir = dir })
@@ -90,49 +103,29 @@ fun FileBrowserScreen(
 
 @Composable
 private fun NavButton(text: String, onClick: () -> Unit) {
-    var isFocused by remember { mutableStateOf(false) }
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .onFocusChanged { isFocused = it.isFocused }
-            .border(width = if (isFocused) 3.dp else 0.dp, color = TvAccentGreen),
-        colors = ButtonDefaults.colors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color(0xFFECECEC),
-            focusedContainerColor = Color(0xFF232323),
-            focusedContentColor = TvAccentGreen
+    RetroButton(onClick = onClick) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
         )
-    ) {
-        Text(text = text, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
     }
 }
 
 @Composable
 private fun FolderRow(name: String, onClick: () -> Unit) {
-    val focusRequester = remember { FocusRequester() }
-    var isFocused by remember { mutableStateOf(false) }
-
-    Button(
+    RetroButton(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .onFocusChanged { isFocused = it.isFocused }
-            .border(width = if (isFocused) 3.dp else 0.dp, color = TvAccentGreen)
-            .focusRequester(focusRequester),
-        colors = ButtonDefaults.colors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color(0xFFECECEC),
-            focusedContainerColor = Color(0xFF232323),
-            focusedContentColor = TvAccentGreen
-        )
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.Start,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "\uD83D\uDCC1  $name")
+            Text(text = "\uD83D\uDCC1", modifier = Modifier.width(36.dp))
+            Text(text = name, style = MaterialTheme.typography.bodyLarge)
         }
     }
 }
