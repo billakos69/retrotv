@@ -43,18 +43,6 @@ android {
     }
 }
 
-configurations.all {
-    resolutionStrategy {
-        // Pin the Kotlin stdlib to match the project's Kotlin plugin version (2.0.21).
-        // Without this, a transitive dependency (Room and/or its KSP compiler) pulls
-        // in a newer stdlib (2.2.x), which the 2.0.21 compiler can't read, and
-        // compileDebugKotlin fails with "incompatible version of Kotlin" errors.
-        force("org.jetbrains.kotlin:kotlin-stdlib:2.0.21")
-        force("org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21")
-        force("org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21")
-    }
-}
-
 dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.activity:activity-compose:1.9.1")
@@ -77,9 +65,9 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.0")
     implementation("androidx.media3:media3-ui:1.11.0")
 
-    implementation("androidx.room:room-runtime:2.8.4")
-    implementation("androidx.room:room-ktx:2.8.4")
-    ksp("androidx.room:room-compiler:2.8.4")
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
