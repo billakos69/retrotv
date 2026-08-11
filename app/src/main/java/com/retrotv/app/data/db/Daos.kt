@@ -24,6 +24,9 @@ interface ChannelDao {
 
     @Delete
     suspend fun delete(channel: ChannelEntity)
+
+    @Query("DELETE FROM channels")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -42,6 +45,9 @@ interface SeriesDao {
 interface EpisodeDao {
     @Query("SELECT * FROM episodes WHERE seriesId = :seriesId ORDER BY sortOrder")
     fun getForSeries(seriesId: Long): Flow<List<EpisodeEntity>>
+
+    @Query("SELECT * FROM episodes")
+    suspend fun getAllOnce(): List<EpisodeEntity>
 
     @Query("UPDATE episodes SET lastPositionMs = :positionMs, watched = :watched WHERE id = :id")
     suspend fun updateProgress(id: Long, positionMs: Long, watched: Boolean)
@@ -63,6 +69,9 @@ interface AdDao {
 
     @Delete
     suspend fun delete(ad: AdEntity)
+
+    @Query("DELETE FROM ads")
+    suspend fun deleteAll()
 }
 
 @Dao
@@ -75,4 +84,7 @@ interface JingleDao {
 
     @Delete
     suspend fun delete(jingle: JingleEntity)
+
+    @Query("DELETE FROM jingles")
+    suspend fun deleteAll()
 }
