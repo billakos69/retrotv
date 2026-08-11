@@ -1,5 +1,6 @@
 package com.retrotv.app.data
 
+import android.media.MediaMetadataRetriever
 import com.retrotv.app.data.model.Channel
 import com.retrotv.app.data.model.Episode
 import com.retrotv.app.data.model.MediaClip
@@ -85,7 +86,7 @@ object LibraryScanner {
         val files = (dir.listFiles { f -> f.isFile && f.extension.lowercase() in VIDEO_EXTENSIONS } ?: emptyArray())
             .toList()
             .naturalSortedBy { it.name }
-        return files.map { Episode(title = it.nameWithoutExtension, file = it) }
+        return files.map { Episode(title = it.nameWithoutExtension, file = it, durationMs = extractDurationMs(it)) }
     }
 
     private fun scanClips(dir: File): List<MediaClip> {
@@ -94,5 +95,23 @@ object LibraryScanner {
             .toList()
             .naturalSortedBy { it.name }
         return files.map { MediaClip(title = it.nameWithoutExtension, file = it) }
+    }
+
+    /**
+     * Reads the duration of a video file via MediaMetadataRetriever. Returns 0
+     * if the file can't be read (corrupt file, unsupported codec, etc.) so a
+     * bad file doesn't crash the whole scan — it'll just be treated as
+     * zero-length by the scheduler later.
+     */
+    private fun extractDurationMs(file: File): Long {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(file.absolutePath)
+            retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        } catch (e: Exception) {
+            0L
+        } finally {
+            retriever.release()
+        }
     }
 }
