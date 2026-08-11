@@ -16,18 +16,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.retrotv.app.data.LibraryScanner
 import com.retrotv.app.data.SettingsRepository
+import com.retrotv.app.data.model.Episode
 import com.retrotv.app.ui.*
 import com.retrotv.app.ui.theme.RetroTVTheme
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
 import com.retrotv.app.util.StorageUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 
 private enum class AppScreen {
-    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY
+    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY, PLAYER
 }
 
 class MainActivity : ComponentActivity() {
@@ -55,6 +59,9 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
     var folderStatus by remember { mutableStateOf(FolderStatus.NOT_SELECTED) }
     var folderPath by remember { mutableStateOf<String?>(null) }
 
+    var playerChannelName by remember { mutableStateOf("") }
+    var playerEpisodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
+
     fun refreshFromStorage(path: String?) {
         folderPath = path
         screen = if (StorageUtils.isFolderAccessible(path)) {
@@ -62,6 +69,21 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
         } else {
             folderStatus = if (path == null) FolderStatus.NOT_SELECTED else FolderStatus.NOT_FOUND
             if (StorageUtils.hasAllFilesAccess()) AppScreen.NEEDS_FOLDER else AppScreen.NEEDS_PERMISSION
+        }
+    }
+
+    fun startWatchingFirstAvailableChannel() {
+        val path = folderPath ?: return
+        scope.launch {
+            val library = withContext(Dispatchers.IO) { LibraryScanner.scan(path) }
+            val channel = library.channels.firstOrNull { c -> c.series.any { it.episodes.isNotEmpty() } }
+            if (channel != null) {
+                playerChannelName = channel.name
+                playerEpisodes = channel.series.flatMap { it.episodes }
+                screen = AppScreen.PLAYER
+            }
+            // else: no playable content found yet — stays on the main menu.
+            // TODO once we have a message/toast pattern, surface this to the user.
         }
     }
 
@@ -107,6 +129,7 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
                 when (item) {
                     MainMenuItem.SETTINGS -> screen = AppScreen.SETTINGS
                     MainMenuItem.LIBRARY -> screen = AppScreen.LIBRARY
+                    MainMenuItem.WATCH_TV -> startWatchingFirstAvailableChannel()
                     else -> { /* not wired up yet */ }
                 }
             }
@@ -119,6 +142,12 @@ private fun RetroTVApp(settingsRepository: SettingsRepository) {
 
         AppScreen.LIBRARY -> LibraryScreen(
             rootPath = folderPath ?: "",
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+
+        AppScreen.PLAYER -> PlayerScreen(
+            channelName = playerChannelName,
+            episodes = playerEpisodes,
             onBack = { screen = AppScreen.MAIN_MENU }
         )
     }
