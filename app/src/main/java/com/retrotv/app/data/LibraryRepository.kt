@@ -77,4 +77,30 @@ class LibraryRepository(private val db: RetroTvDatabase) {
             }
         }
     }
+
+    /**
+     * Deletes a single channel (and, via FK cascade, its series/episodes).
+     */
+    suspend fun deleteChannel(channel: ChannelEntity) {
+        db.channelDao().delete(channel)
+    }
+
+    /**
+     * Moves [channel] by [delta] positions within [currentOrder] (the currently
+     * displayed, sortOrder-sorted list) by swapping sortOrder with the neighbor
+     * at the target index. delta = -1 moves up, +1 moves down. No-op if the
+     * channel is already at that edge of the list.
+     */
+    suspend fun moveChannel(currentOrder: List<ChannelEntity>, channel: ChannelEntity, delta: Int) {
+        val index = currentOrder.indexOfFirst { it.id == channel.id }
+        if (index < 0) return
+        val targetIndex = index + delta
+        if (targetIndex < 0 || targetIndex >= currentOrder.size) return
+
+        val target = currentOrder[targetIndex]
+        db.withTransaction {
+            db.channelDao().update(channel.copy(sortOrder = target.sortOrder))
+            db.channelDao().update(target.copy(sortOrder = channel.sortOrder))
+        }
+    }
 }
