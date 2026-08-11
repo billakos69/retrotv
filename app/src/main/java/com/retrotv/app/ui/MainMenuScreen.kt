@@ -1,32 +1,27 @@
 package com.retrotv.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.tv.material3.Button
-import androidx.tv.material3.ButtonDefaults
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
+import com.retrotv.app.ui.components.RetroButton
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
 import com.retrotv.app.ui.theme.TvTextSecondary
@@ -55,7 +50,7 @@ fun MainMenuScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(TvBackground)
-            .padding(48.dp)
+            .padding(horizontal = 56.dp, vertical = 48.dp)
     ) {
         Column(
             modifier = Modifier.fillMaxSize(),
@@ -74,11 +69,12 @@ fun MainMenuScreen(
             )
 
             LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
                 itemsIndexed(MainMenuItem.values().toList()) { index, item ->
                     MenuButton(
+                        index = index,
                         item = item,
                         onClick = { onItemSelected(item) },
                         focusRequester = if (index == 0) firstItemFocusRequester else null
@@ -91,38 +87,31 @@ fun MainMenuScreen(
 
 @Composable
 private fun MenuButton(
+    index: Int,
     item: MainMenuItem,
     onClick: () -> Unit,
     focusRequester: FocusRequester? = null
 ) {
-    var isFocused by remember { mutableStateOf(false) }
-
-    var modifier = Modifier
-        .fillMaxWidth(0.35f)
-        .onFocusChanged { focusState -> isFocused = focusState.isFocused }
-        .border(
-            width = if (isFocused) 3.dp else 0.dp,
-            color = TvAccentGreen
-        )
-
-    if (focusRequester != null) {
-        modifier = modifier.focusRequester(focusRequester)
-    }
-
-    Button(
+    RetroButton(
         onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.colors(
-            containerColor = Color(0xFF1A1A1A),
-            contentColor = Color(0xFFECECEC),
-            focusedContainerColor = Color(0xFF232323),
-            focusedContentColor = TvAccentGreen
-        )
+        modifier = Modifier.fillMaxWidth(0.4f),
+        focusRequester = focusRequester
     ) {
-        Text(
-            text = item.label,
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.padding(vertical = 8.dp)
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 22.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "%02d".format(index + 1),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.width(40.dp)
+            )
+            Text(
+                text = item.label,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
     }
 }
