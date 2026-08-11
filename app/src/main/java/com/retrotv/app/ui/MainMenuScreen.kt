@@ -10,13 +10,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,12 @@ enum class MainMenuItem(val label: String) {
 fun MainMenuScreen(
     onItemSelected: (MainMenuItem) -> Unit = {}
 ) {
+    val firstItemFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        firstItemFocusRequester.requestFocus()
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -68,8 +77,12 @@ fun MainMenuScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(bottom = 24.dp)
             ) {
-                items(MainMenuItem.values().toList()) { item ->
-                    MenuButton(item = item, onClick = { onItemSelected(item) })
+                itemsIndexed(MainMenuItem.values().toList()) { index, item ->
+                    MenuButton(
+                        item = item,
+                        onClick = { onItemSelected(item) },
+                        focusRequester = if (index == 0) firstItemFocusRequester else null
+                    )
                 }
             }
         }
@@ -77,18 +90,28 @@ fun MainMenuScreen(
 }
 
 @Composable
-private fun MenuButton(item: MainMenuItem, onClick: () -> Unit) {
+private fun MenuButton(
+    item: MainMenuItem,
+    onClick: () -> Unit,
+    focusRequester: FocusRequester? = null
+) {
     var isFocused by remember { mutableStateOf(false) }
+
+    var modifier = Modifier
+        .fillMaxWidth(0.35f)
+        .onFocusChanged { focusState -> isFocused = focusState.isFocused }
+        .border(
+            width = if (isFocused) 3.dp else 0.dp,
+            color = TvAccentGreen
+        )
+
+    if (focusRequester != null) {
+        modifier = modifier.focusRequester(focusRequester)
+    }
 
     Button(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth(0.35f)
-            .onFocusChanged { focusState -> isFocused = focusState.isFocused }
-            .border(
-                width = if (isFocused) 3.dp else 0.dp,
-                color = TvAccentGreen
-            ),
+        modifier = modifier,
         colors = ButtonDefaults.colors(
             containerColor = Color(0xFF1A1A1A),
             contentColor = Color(0xFFECECEC),
