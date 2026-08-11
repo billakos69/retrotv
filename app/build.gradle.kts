@@ -12,8 +12,8 @@ android {
         applicationId = "com.retrotv.app"
         minSdk = 30
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.3.0-ui-polish"
+        versionCode = 5
+        versionName = "0.4.0-library-scanner"
     }
 
     buildTypes {
@@ -60,6 +60,9 @@ dependencies {
 
     implementation("androidx.documentfile:documentfile:1.0.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
+
+    implementation("androidx.media3:media3-exoplayer:1.11.0")
+    implementation("androidx.media3:media3-ui:1.11.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
