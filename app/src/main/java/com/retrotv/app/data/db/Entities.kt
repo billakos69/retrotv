@@ -60,12 +60,14 @@ data class EpisodeEntity(
 data class AdEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
-    val filePath: String
+    val filePath: String,
+    val durationMs: Long = 0
 )
 
 @Entity(tableName = "jingles")
 data class JingleEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
-    val filePath: String
+    val filePath: String,
+    val durationMs: Long = 0
 )
