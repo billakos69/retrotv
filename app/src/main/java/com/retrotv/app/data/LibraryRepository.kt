@@ -21,8 +21,7 @@ class LibraryRepository(private val db: RetroTvDatabase) {
      * Flat, ordered list of every episode belonging to [channelId], across
      * all of its series — series in name order, episodes within a series in
      * their scanned (natural-sorted) order. This is the "channel playlist"
-     * that [com.retrotv.app.data.schedule.ChannelScheduleCalculator] runs
-     * against to work out what's on right now.
+     * base that ChannelPlaylistBuilder mixes ads/jingles into.
      */
     suspend fun getEpisodesForChannel(channelId: Long): List<EpisodeEntity> {
         val seriesList: List<SeriesEntity> = db.seriesDao().getForChannel(channelId).first()
@@ -30,6 +29,18 @@ class LibraryRepository(private val db: RetroTvDatabase) {
             db.episodeDao().getForSeries(series.id).first()
         }
     }
+
+    /**
+     * One-shot snapshot of the shared Ads/ pool, for building a channel's
+     * playlist. Ads aren't per-channel — every channel draws from the same
+     * pool, same as a real local station rotating the same commercial breaks.
+     */
+    suspend fun getAdsOnce(): List<AdEntity> = db.adDao().getAll().first()
+
+    /**
+     * One-shot snapshot of the shared Jingles/ (station ID) pool.
+     */
+    suspend fun getJinglesOnce(): List<JingleEntity> = db.jingleDao().getAll().first()
 
     /**
      * Re-scans [rootPath] on disk and replaces the database contents with what
@@ -98,19 +109,10 @@ class LibraryRepository(private val db: RetroTvDatabase) {
         }
     }
 
-    /**
-     * Deletes a single channel (and, via FK cascade, its series/episodes).
-     */
     suspend fun deleteChannel(channel: ChannelEntity) {
         db.channelDao().delete(channel)
     }
 
-    /**
-     * Moves [channel] by [delta] positions within [currentOrder] (the currently
-     * displayed, sortOrder-sorted list) by swapping sortOrder with the neighbor
-     * at the target index. delta = -1 moves up, +1 moves down. No-op if the
-     * channel is already at that edge of the list.
-     */
     suspend fun moveChannel(currentOrder: List<ChannelEntity>, channel: ChannelEntity, delta: Int) {
         val index = currentOrder.indexOfFirst { it.id == channel.id }
         if (index < 0) return
@@ -124,11 +126,6 @@ class LibraryRepository(private val db: RetroTvDatabase) {
         }
     }
 
-    /**
-     * Persists playback progress for a single episode — called from
-     * PlayerScreen both periodically (checkpointing) and when an episode
-     * finishes or the player is closed.
-     */
     suspend fun updateEpisodeProgress(episodeId: Long, positionMs: Long, watched: Boolean) {
         db.episodeDao().updateProgress(episodeId, positionMs, watched)
     }
