@@ -21,7 +21,9 @@ import com.retrotv.app.data.SettingsRepository
 import com.retrotv.app.data.db.ChannelEntity
 import com.retrotv.app.data.db.EpisodeEntity
 import com.retrotv.app.data.db.RetroTvDatabase
+import com.retrotv.app.data.schedule.ChannelPlaylistBuilder
 import com.retrotv.app.data.schedule.ChannelScheduleCalculator
+import com.retrotv.app.data.schedule.ScheduleItem
 import com.retrotv.app.ui.*
 import com.retrotv.app.ui.theme.RetroTVTheme
 import com.retrotv.app.ui.theme.TvAccentGreen
@@ -71,7 +73,7 @@ private fun RetroTVApp(
     var folderPath by remember { mutableStateOf<String?>(null) }
 
     var playerChannelName by remember { mutableStateOf("") }
-    var playerEpisodes by remember { mutableStateOf<List<EpisodeEntity>>(emptyList()) }
+    var playerItems by remember { mutableStateOf<List<ScheduleItem>>(emptyList()) }
     var playerStartIndex by remember { mutableStateOf(0) }
     var playerStartOffsetMs by remember { mutableStateOf(0L) }
 
@@ -103,10 +105,15 @@ private fun RetroTVApp(
 
             if (match != null) {
                 val (channel, episodes) = match
-                val program = ChannelScheduleCalculator.currentProgram(episodes) ?: return@launch
+                val playlist = withContext(Dispatchers.IO) {
+                    val ads = libraryRepository.getAdsOnce()
+                    val jingles = libraryRepository.getJinglesOnce()
+                    ChannelPlaylistBuilder.build(episodes, ads, jingles)
+                }
+                val program = ChannelScheduleCalculator.currentProgram(playlist) ?: return@launch
                 playerChannelName = channel.name
-                playerEpisodes = episodes
-                playerStartIndex = program.episodeIndex
+                playerItems = playlist
+                playerStartIndex = program.itemIndex
                 playerStartOffsetMs = program.offsetMs
                 screen = AppScreen.PLAYER
             }
@@ -181,10 +188,10 @@ private fun RetroTVApp(
 
         AppScreen.PLAYER -> PlayerScreen(
             channelName = playerChannelName,
-            episodes = playerEpisodes,
+            items = playerItems,
             startIndex = playerStartIndex,
             startOffsetMs = playerStartOffsetMs,
-            onProgress = { episodeId, positionMs, watched ->
+            onEpisodeProgress = { episodeId, positionMs, watched ->
                 scope.launch {
                     withContext(Dispatchers.IO) {
                         libraryRepository.updateEpisodeProgress(episodeId, positionMs, watched)
