@@ -18,6 +18,7 @@ import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.retrotv.app.data.LibraryRepository
 import com.retrotv.app.data.SettingsRepository
+import com.retrotv.app.data.db.ChannelEntity
 import com.retrotv.app.data.db.EpisodeEntity
 import com.retrotv.app.data.db.RetroTvDatabase
 import com.retrotv.app.data.schedule.ChannelScheduleCalculator
@@ -94,11 +95,19 @@ private fun RetroTVApp(
     fun startWatchingLiveChannel() {
         scope.launch {
             val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
-            val match = withContext(Dispatchers.IO) {
-                channels.asSequence()
-                    .map { channel -> channel to libraryRepository.getEpisodesForChannel(channel.id) }
-                    .firstOrNull { (_, episodes) -> episodes.isNotEmpty() }
+
+            val match: Pair<ChannelEntity, List<EpisodeEntity>>? = withContext(Dispatchers.IO) {
+                var found: Pair<ChannelEntity, List<EpisodeEntity>>? = null
+                for (channel in channels) {
+                    val episodes = libraryRepository.getEpisodesForChannel(channel.id)
+                    if (episodes.isNotEmpty()) {
+                        found = channel to episodes
+                        break
+                    }
+                }
+                found
             }
+
             if (match != null) {
                 val (channel, episodes) = match
                 val program = ChannelScheduleCalculator.currentProgram(episodes) ?: return@launch
