@@ -25,7 +25,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.retrotv.app.data.db.EpisodeEntity
+import com.retrotv.app.data.schedule.ScheduleItem
+import com.retrotv.app.ui.theme.TvAccentAmber
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
 import com.retrotv.app.ui.theme.TvTextSecondary
@@ -33,39 +34,41 @@ import kotlinx.coroutines.delay
 import java.io.File
 
 /**
- * Plays [episodes] as a continuous, looping channel, starting at [startIndex]
- * and [startOffsetMs] into that episode — i.e. wherever
- * [com.retrotv.app.data.schedule.ChannelScheduleCalculator] says the "live"
- * channel currently is, so opening a channel behaves like tuning into a real
- * broadcast already in progress.
+ * Plays [items] (episodes interleaved with ads/jingles, as built by
+ * ChannelPlaylistBuilder) as a continuous, looping channel, starting at
+ * [startIndex] and [startOffsetMs] — wherever ChannelScheduleCalculator says
+ * the "live" channel currently is.
  *
- * [onProgress] is called to persist watch state to the database: on a
- * 5-second checkpoint timer, whenever an episode finishes naturally, and once
- * more when the screen is closed — so per-episode position/watched state
- * (used for future catch-up/VOD features) survives navigating away or the
- * app being force-closed mid-episode.
+ * [onEpisodeProgress] is only invoked for episode items (ads/jingles have no
+ * watch-progress to persist): on a 5-second checkpoint timer, whenever an
+ * episode finishes naturally, and once more when the screen is closed.
  */
 @Composable
 fun PlayerScreen(
     channelName: String,
-    episodes: List<EpisodeEntity>,
+    items: List<ScheduleItem>,
     startIndex: Int,
     startOffsetMs: Long,
-    onProgress: (episodeId: Long, positionMs: Long, watched: Boolean) -> Unit,
+    onEpisodeProgress: (episodeId: Long, positionMs: Long, watched: Boolean) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
-    var currentIndex by remember { mutableStateOf(startIndex.coerceIn(0, (episodes.size - 1).coerceAtLeast(0))) }
+    var currentIndex by remember { mutableStateOf(startIndex.coerceIn(0, (items.size - 1).coerceAtLeast(0))) }
 
     BackHandler(onBack = onBack)
 
-    DisposableEffect(episodes, startIndex, startOffsetMs) {
-        val mediaItems = episodes.map { MediaItem.fromUri(Uri.fromFile(File(it.filePath))) }
+    fun reportProgressIfEpisode(index: Int, positionMs: Long, watched: Boolean) {
+        val item = items.getOrNull(index) as? ScheduleItem.EpisodeItem ?: return
+        onEpisodeProgress(item.episodeId, positionMs, watched)
+    }
+
+    DisposableEffect(items, startIndex, startOffsetMs) {
+        val mediaItems = items.map { MediaItem.fromUri(Uri.fromFile(File(it.filePath))) }
         val safeStartIndex = startIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
 
         // A real channel never "ends" — loop the playlist so it behaves like
-        // a continuous broadcast instead of stopping after the last episode.
+        // a continuous broadcast instead of stopping after the last item.
         exoPlayer.repeatMode = Player.REPEAT_MODE_ALL
         exoPlayer.setMediaItems(mediaItems, safeStartIndex, startOffsetMs.coerceAtLeast(0L))
         exoPlayer.prepare()
@@ -75,9 +78,9 @@ fun PlayerScreen(
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 val previousIndex = currentIndex
                 currentIndex = exoPlayer.currentMediaItemIndex
-                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO && previousIndex in episodes.indices) {
-                    // The previous episode played through to the end naturally.
-                    onProgress(episodes[previousIndex].id, 0L, true)
+                if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    // The previous item played through to the end naturally.
+                    reportProgressIfEpisode(previousIndex, 0L, true)
                 }
             }
         }
@@ -86,9 +89,7 @@ fun PlayerScreen(
         onDispose {
             // Remember exactly where playback was left, in case this episode
             // gets resumed later.
-            if (currentIndex in episodes.indices) {
-                onProgress(episodes[currentIndex].id, exoPlayer.currentPosition, false)
-            }
+            reportProgressIfEpisode(currentIndex, exoPlayer.currentPosition, false)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
@@ -96,12 +97,10 @@ fun PlayerScreen(
 
     // Periodic checkpoint so progress survives a crash/force-close, not just
     // a clean back-navigation.
-    LaunchedEffect(episodes, startIndex, startOffsetMs) {
+    LaunchedEffect(items, startIndex, startOffsetMs) {
         while (true) {
             delay(5000)
-            if (currentIndex in episodes.indices) {
-                onProgress(episodes[currentIndex].id, exoPlayer.currentPosition, false)
-            }
+            reportProgressIfEpisode(currentIndex, exoPlayer.currentPosition, false)
         }
     }
 
@@ -131,13 +130,25 @@ fun PlayerScreen(
                 style = MaterialTheme.typography.titleMedium,
                 color = TvAccentGreen
             )
-            if (episodes.isNotEmpty() && currentIndex < episodes.size) {
+            val current = items.getOrNull(currentIndex)
+            if (current != null) {
                 Text(
-                    text = episodes[currentIndex].title,
+                    text = labelFor(current),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = TvAccentAmber
+                )
+                Text(
+                    text = current.title,
                     style = MaterialTheme.typography.bodyLarge,
                     color = TvTextSecondary
                 )
             }
         }
     }
+}
+
+private fun labelFor(item: ScheduleItem): String = when (item) {
+    is ScheduleItem.EpisodeItem -> "NOW PLAYING"
+    is ScheduleItem.AdItem -> "ADVERTISEMENT"
+    is ScheduleItem.JingleItem -> "STATION ID"
 }
