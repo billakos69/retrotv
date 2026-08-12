@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         AdEntity::class,
         JingleEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class RetroTvDatabase : RoomDatabase() {
