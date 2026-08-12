@@ -8,6 +8,7 @@ import com.retrotv.app.data.db.JingleEntity
 import com.retrotv.app.data.db.RetroTvDatabase
 import com.retrotv.app.data.db.SeriesEntity
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 
 /**
  * Bridges the on-disk LibraryScanner with the Room database.
@@ -15,6 +16,20 @@ import kotlinx.coroutines.flow.Flow
 class LibraryRepository(private val db: RetroTvDatabase) {
 
     fun observeChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAll()
+
+    /**
+     * Flat, ordered list of every episode belonging to [channelId], across
+     * all of its series — series in name order, episodes within a series in
+     * their scanned (natural-sorted) order. This is the "channel playlist"
+     * that [com.retrotv.app.data.schedule.ChannelScheduleCalculator] runs
+     * against to work out what's on right now.
+     */
+    suspend fun getEpisodesForChannel(channelId: Long): List<EpisodeEntity> {
+        val seriesList: List<SeriesEntity> = db.seriesDao().getForChannel(channelId).first()
+        return seriesList.flatMap { series ->
+            db.episodeDao().getForSeries(series.id).first()
+        }
+    }
 
     /**
      * Re-scans [rootPath] on disk and replaces the database contents with what
