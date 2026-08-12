@@ -23,7 +23,8 @@ data class Channel(
 
 data class MediaClip(
     val title: String,
-    val file: File
+    val file: File,
+    val durationMs: Long = 0
 )
 
 data class ScannedLibrary(
