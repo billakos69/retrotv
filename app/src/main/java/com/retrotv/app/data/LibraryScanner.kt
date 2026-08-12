@@ -94,7 +94,7 @@ object LibraryScanner {
         val files = (dir.listFiles { f -> f.isFile && f.extension.lowercase() in VIDEO_EXTENSIONS } ?: emptyArray())
             .toList()
             .naturalSortedBy { it.name }
-        return files.map { MediaClip(title = it.nameWithoutExtension, file = it) }
+        return files.map { MediaClip(title = it.nameWithoutExtension, file = it, durationMs = extractDurationMs(it)) }
     }
 
     /**
