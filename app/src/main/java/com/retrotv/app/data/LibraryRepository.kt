@@ -86,10 +86,14 @@ class LibraryRepository(private val db: RetroTvDatabase) {
             }
 
             library.ads.forEach { ad ->
-                db.adDao().insert(AdEntity(title = ad.title, filePath = ad.file.absolutePath))
+                db.adDao().insert(
+                    AdEntity(title = ad.title, filePath = ad.file.absolutePath, durationMs = ad.durationMs)
+                )
             }
             library.jingles.forEach { jingle ->
-                db.jingleDao().insert(JingleEntity(title = jingle.title, filePath = jingle.file.absolutePath))
+                db.jingleDao().insert(
+                    JingleEntity(title = jingle.title, filePath = jingle.file.absolutePath, durationMs = jingle.durationMs)
+                )
             }
         }
     }
