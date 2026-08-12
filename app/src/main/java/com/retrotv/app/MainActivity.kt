@@ -85,13 +85,6 @@ private fun RetroTVApp(
         }
     }
 
-    /**
-     * Stopgap channel selection (same as Stage 4): tunes into the first
-     * channel that has any episodes. What changed vs. before: it no longer
-     * always starts at episode 0 — it asks ChannelScheduleCalculator what
-     * should be playing *right now*, like a real broadcast. Real channel
-     * selection (EPG / CH+/CH-) is still a later stage.
-     */
     fun startWatchingLiveChannel() {
         scope.launch {
             val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
@@ -191,6 +184,13 @@ private fun RetroTVApp(
             episodes = playerEpisodes,
             startIndex = playerStartIndex,
             startOffsetMs = playerStartOffsetMs,
+            onProgress = { episodeId, positionMs, watched ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        libraryRepository.updateEpisodeProgress(episodeId, positionMs, watched)
+                    }
+                }
+            },
             onBack = { screen = AppScreen.MAIN_MENU }
         )
     }
