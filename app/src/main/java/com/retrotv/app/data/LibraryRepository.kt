@@ -119,4 +119,13 @@ class LibraryRepository(private val db: RetroTvDatabase) {
             db.channelDao().update(target.copy(sortOrder = channel.sortOrder))
         }
     }
+
+    /**
+     * Persists playback progress for a single episode — called from
+     * PlayerScreen both periodically (checkpointing) and when an episode
+     * finishes or the player is closed.
+     */
+    suspend fun updateEpisodeProgress(episodeId: Long, positionMs: Long, watched: Boolean) {
+        db.episodeDao().updateProgress(episodeId, positionMs, watched)
+    }
 }
