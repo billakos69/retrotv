@@ -24,26 +24,38 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
-import com.retrotv.app.data.model.Episode
+import com.retrotv.app.data.db.EpisodeEntity
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
 import com.retrotv.app.ui.theme.TvTextSecondary
+import java.io.File
 
+/**
+ * Plays [episodes] as a continuous channel, starting at [startIndex] and
+ * [startOffsetMs] into that episode — i.e. wherever
+ * [com.retrotv.app.data.schedule.ChannelScheduleCalculator] says the
+ * "live" channel currently is, so opening a channel behaves like tuning
+ * into a real broadcast already in progress.
+ */
 @Composable
 fun PlayerScreen(
     channelName: String,
-    episodes: List<Episode>,
+    episodes: List<EpisodeEntity>,
+    startIndex: Int,
+    startOffsetMs: Long,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val exoPlayer = remember { ExoPlayer.Builder(context).build() }
-    var currentIndex by remember { mutableStateOf(0) }
+    var currentIndex by remember { mutableStateOf(startIndex.coerceIn(0, (episodes.size - 1).coerceAtLeast(0))) }
 
     BackHandler(onBack = onBack)
 
-    DisposableEffect(episodes) {
-        val mediaItems = episodes.map { MediaItem.fromUri(Uri.fromFile(it.file)) }
-        exoPlayer.setMediaItems(mediaItems)
+    DisposableEffect(episodes, startIndex, startOffsetMs) {
+        val mediaItems = episodes.map { MediaItem.fromUri(Uri.fromFile(File(it.filePath))) }
+        val safeStartIndex = startIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
+
+        exoPlayer.setMediaItems(mediaItems, safeStartIndex, startOffsetMs.coerceAtLeast(0L))
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
 
