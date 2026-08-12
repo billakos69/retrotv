@@ -17,10 +17,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.retrotv.app.data.LibraryRepository
-import com.retrotv.app.data.LibraryScanner
 import com.retrotv.app.data.SettingsRepository
+import com.retrotv.app.data.db.EpisodeEntity
 import com.retrotv.app.data.db.RetroTvDatabase
-import com.retrotv.app.data.model.Episode
+import com.retrotv.app.data.schedule.ChannelScheduleCalculator
 import com.retrotv.app.ui.*
 import com.retrotv.app.ui.theme.RetroTVTheme
 import com.retrotv.app.ui.theme.TvAccentGreen
@@ -70,7 +70,9 @@ private fun RetroTVApp(
     var folderPath by remember { mutableStateOf<String?>(null) }
 
     var playerChannelName by remember { mutableStateOf("") }
-    var playerEpisodes by remember { mutableStateOf<List<Episode>>(emptyList()) }
+    var playerEpisodes by remember { mutableStateOf<List<EpisodeEntity>>(emptyList()) }
+    var playerStartIndex by remember { mutableStateOf(0) }
+    var playerStartOffsetMs by remember { mutableStateOf(0L) }
 
     fun refreshFromStorage(path: String?) {
         folderPath = path
@@ -82,14 +84,28 @@ private fun RetroTVApp(
         }
     }
 
-    fun startWatchingFirstAvailableChannel() {
-        val path = folderPath ?: return
+    /**
+     * Stopgap channel selection (same as Stage 4): tunes into the first
+     * channel that has any episodes. What changed vs. before: it no longer
+     * always starts at episode 0 — it asks ChannelScheduleCalculator what
+     * should be playing *right now*, like a real broadcast. Real channel
+     * selection (EPG / CH+/CH-) is still a later stage.
+     */
+    fun startWatchingLiveChannel() {
         scope.launch {
-            val library = withContext(Dispatchers.IO) { LibraryScanner.scan(path) }
-            val channel = library.channels.firstOrNull { c -> c.series.any { it.episodes.isNotEmpty() } }
-            if (channel != null) {
+            val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
+            val match = withContext(Dispatchers.IO) {
+                channels.asSequence()
+                    .map { channel -> channel to libraryRepository.getEpisodesForChannel(channel.id) }
+                    .firstOrNull { (_, episodes) -> episodes.isNotEmpty() }
+            }
+            if (match != null) {
+                val (channel, episodes) = match
+                val program = ChannelScheduleCalculator.currentProgram(episodes) ?: return@launch
                 playerChannelName = channel.name
-                playerEpisodes = channel.series.flatMap { it.episodes }
+                playerEpisodes = episodes
+                playerStartIndex = program.episodeIndex
+                playerStartOffsetMs = program.offsetMs
                 screen = AppScreen.PLAYER
             }
             // else: no playable content found yet — stays on the main menu.
@@ -139,7 +155,7 @@ private fun RetroTVApp(
                     MainMenuItem.SETTINGS -> screen = AppScreen.SETTINGS
                     MainMenuItem.LIBRARY -> screen = AppScreen.LIBRARY
                     MainMenuItem.CHANNELS -> screen = AppScreen.CHANNELS
-                    MainMenuItem.WATCH_TV -> startWatchingFirstAvailableChannel()
+                    MainMenuItem.WATCH_TV -> startWatchingLiveChannel()
                     else -> { /* not wired up yet */ }
                 }
             }
@@ -164,6 +180,8 @@ private fun RetroTVApp(
         AppScreen.PLAYER -> PlayerScreen(
             channelName = playerChannelName,
             episodes = playerEpisodes,
+            startIndex = playerStartIndex,
+            startOffsetMs = playerStartOffsetMs,
             onBack = { screen = AppScreen.MAIN_MENU }
         )
     }
