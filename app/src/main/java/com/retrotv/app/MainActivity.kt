@@ -89,11 +89,6 @@ private fun RetroTVApp(
         }
     }
 
-    /**
-     * Builds the live playlist for [channels][index] specifically (no
-     * wandering to a neighbor). Returns false if that channel has no
-     * playable content.
-     */
     suspend fun tuneExactChannel(channels: List<ChannelEntity>, index: Int): Boolean {
         if (index !in channels.indices) return false
         val channel = channels[index]
@@ -118,10 +113,6 @@ private fun RetroTVApp(
         return true
     }
 
-    /**
-     * Tunes into the first channel found (walking outward from [startIndex] in
-     * [direction]) that actually has episodes, wrapping around the list.
-     */
     suspend fun tunePlayableChannel(channels: List<ChannelEntity>, startIndex: Int, direction: Int): Boolean {
         if (channels.isEmpty()) return false
         var index = startIndex
@@ -139,7 +130,6 @@ private fun RetroTVApp(
             channelList = channels
             val found = tunePlayableChannel(channels, 0, 1)
             if (found) screen = AppScreen.PLAYER
-            // else: no playable content found yet — stays on the main menu.
         }
     }
 
@@ -158,7 +148,6 @@ private fun RetroTVApp(
             if (index < 0) return@launch
             val found = tuneExactChannel(channels, index)
             if (found) screen = AppScreen.PLAYER
-            // else: this specific channel has no content yet — stay on EPG.
         }
     }
 
@@ -207,4 +196,58 @@ private fun RetroTVApp(
                     MainMenuItem.CHANNELS -> screen = AppScreen.CHANNELS
                     MainMenuItem.TV_GUIDE -> screen = AppScreen.EPG
                     MainMenuItem.WATCH_TV -> startWatchingLiveChannel()
-                    else -> { /* not wired up yet
+                    else -> { }
+                }
+            }
+        )
+
+        AppScreen.SETTINGS -> SettingsScreen(
+            currentFolderPath = folderPath ?: "Not set",
+            onChangeFolder = { screen = AppScreen.PICKING_FOLDER }
+        )
+
+        AppScreen.LIBRARY -> LibraryScreen(
+            rootPath = folderPath ?: "",
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+
+        AppScreen.CHANNELS -> ChannelsScreen(
+            repository = libraryRepository,
+            rootPath = folderPath ?: "",
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+
+        AppScreen.EPG -> EpgScreen(
+            repository = libraryRepository,
+            onSelectChannel = { channel -> tuneToChannelFromEpg(channel) },
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+
+        AppScreen.PLAYER -> PlayerScreen(
+            channelName = playerChannelName,
+            items = playerItems,
+            startIndex = playerStartIndex,
+            startOffsetMs = playerStartOffsetMs,
+            onEpisodeProgress = { episodeId, positionMs, watched ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        libraryRepository.updateEpisodeProgress(episodeId, positionMs, watched)
+                    }
+                }
+            },
+            onChannelUp = { switchChannel(1) },
+            onChannelDown = { switchChannel(-1) },
+            onBack = { screen = AppScreen.MAIN_MENU }
+        )
+    }
+}
+
+@Composable
+private fun LoadingScreen() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(TvBackground),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text = "RETROTV", style = MaterialTheme.typography.headlineLarge, color = TvAccentGreen)
+    }
+}
