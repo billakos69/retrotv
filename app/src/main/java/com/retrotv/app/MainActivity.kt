@@ -35,7 +35,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 private enum class AppScreen {
-    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY, PLAYER, CHANNELS
+    LOADING, NEEDS_PERMISSION, PICKING_FOLDER, NEEDS_FOLDER, MAIN_MENU, SETTINGS, LIBRARY, PLAYER, CHANNELS, EPG
 }
 
 class MainActivity : ComponentActivity() {
@@ -90,41 +90,44 @@ private fun RetroTVApp(
     }
 
     /**
+     * Builds the live playlist for [channels][index] specifically (no
+     * wandering to a neighbor). Returns false if that channel has no
+     * playable content.
+     */
+    suspend fun tuneExactChannel(channels: List<ChannelEntity>, index: Int): Boolean {
+        if (index !in channels.indices) return false
+        val channel = channels[index]
+
+        val playlist = withContext(Dispatchers.IO) {
+            val episodes = libraryRepository.getEpisodesForChannel(channel.id)
+            if (episodes.isEmpty()) {
+                null
+            } else {
+                val ads = libraryRepository.getAdsOnce()
+                val jingles = libraryRepository.getJinglesOnce()
+                ChannelPlaylistBuilder.build(episodes, ads, jingles)
+            }
+        }
+        val program = playlist?.let { ChannelScheduleCalculator.currentProgram(it) } ?: return false
+
+        playerChannelName = channel.name
+        playerItems = playlist
+        playerStartIndex = program.itemIndex
+        playerStartOffsetMs = program.offsetMs
+        currentChannelIndex = index
+        return true
+    }
+
+    /**
      * Tunes into the first channel found (walking outward from [startIndex] in
      * [direction]) that actually has episodes, wrapping around the list.
-     * Updates the player state (channel name/playlist/live start position)
-     * and [currentChannelIndex] on success. Returns false if no channel in
-     * [channels] has any playable content.
      */
     suspend fun tunePlayableChannel(channels: List<ChannelEntity>, startIndex: Int, direction: Int): Boolean {
         if (channels.isEmpty()) return false
         var index = startIndex
         repeat(channels.size) {
             val normalizedIndex = ((index % channels.size) + channels.size) % channels.size
-            val channel = channels[normalizedIndex]
-
-            val playlist = withContext(Dispatchers.IO) {
-                val episodes = libraryRepository.getEpisodesForChannel(channel.id)
-                if (episodes.isEmpty()) {
-                    null
-                } else {
-                    val ads = libraryRepository.getAdsOnce()
-                    val jingles = libraryRepository.getJinglesOnce()
-                    ChannelPlaylistBuilder.build(episodes, ads, jingles)
-                }
-            }
-
-            if (playlist != null) {
-                val program = ChannelScheduleCalculator.currentProgram(playlist)
-                if (program != null) {
-                    playerChannelName = channel.name
-                    playerItems = playlist
-                    playerStartIndex = program.itemIndex
-                    playerStartOffsetMs = program.offsetMs
-                    currentChannelIndex = normalizedIndex
-                    return true
-                }
-            }
+            if (tuneExactChannel(channels, normalizedIndex)) return true
             index += direction
         }
         return false
@@ -144,6 +147,18 @@ private fun RetroTVApp(
         if (channelList.isEmpty()) return
         scope.launch {
             tunePlayableChannel(channelList, currentChannelIndex + direction, direction)
+        }
+    }
+
+    fun tuneToChannelFromEpg(channel: ChannelEntity) {
+        scope.launch {
+            val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
+            channelList = channels
+            val index = channels.indexOfFirst { it.id == channel.id }
+            if (index < 0) return@launch
+            val found = tuneExactChannel(channels, index)
+            if (found) screen = AppScreen.PLAYER
+            // else: this specific channel has no content yet — stay on EPG.
         }
     }
 
@@ -190,53 +205,6 @@ private fun RetroTVApp(
                     MainMenuItem.SETTINGS -> screen = AppScreen.SETTINGS
                     MainMenuItem.LIBRARY -> screen = AppScreen.LIBRARY
                     MainMenuItem.CHANNELS -> screen = AppScreen.CHANNELS
+                    MainMenuItem.TV_GUIDE -> screen = AppScreen.EPG
                     MainMenuItem.WATCH_TV -> startWatchingLiveChannel()
-                    else -> { /* not wired up yet */ }
-                }
-            }
-        )
-
-        AppScreen.SETTINGS -> SettingsScreen(
-            currentFolderPath = folderPath ?: "Not set",
-            onChangeFolder = { screen = AppScreen.PICKING_FOLDER }
-        )
-
-        AppScreen.LIBRARY -> LibraryScreen(
-            rootPath = folderPath ?: "",
-            onBack = { screen = AppScreen.MAIN_MENU }
-        )
-
-        AppScreen.CHANNELS -> ChannelsScreen(
-            repository = libraryRepository,
-            rootPath = folderPath ?: "",
-            onBack = { screen = AppScreen.MAIN_MENU }
-        )
-
-        AppScreen.PLAYER -> PlayerScreen(
-            channelName = playerChannelName,
-            items = playerItems,
-            startIndex = playerStartIndex,
-            startOffsetMs = playerStartOffsetMs,
-            onEpisodeProgress = { episodeId, positionMs, watched ->
-                scope.launch {
-                    withContext(Dispatchers.IO) {
-                        libraryRepository.updateEpisodeProgress(episodeId, positionMs, watched)
-                    }
-                }
-            },
-            onChannelUp = { switchChannel(1) },
-            onChannelDown = { switchChannel(-1) },
-            onBack = { screen = AppScreen.MAIN_MENU }
-        )
-    }
-}
-
-@Composable
-private fun LoadingScreen() {
-    Box(
-        modifier = Modifier.fillMaxSize().background(TvBackground),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(text = "RETROTV", style = MaterialTheme.typography.headlineLarge, color = TvAccentGreen)
-    }
-}
+                    else -> { /* not wired up yet
