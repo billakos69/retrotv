@@ -72,6 +72,7 @@ private fun RetroTVApp(
     var folderPath by remember { mutableStateOf<String?>(null) }
 
     var playerChannelName by remember { mutableStateOf("") }
+    var playerLogoPath by remember { mutableStateOf<String?>(null) }
     var playerItems by remember { mutableStateOf<List<ScheduleItem>>(emptyList()) }
     var playerStartIndex by remember { mutableStateOf(0) }
     var playerStartOffsetMs by remember { mutableStateOf(0L) }
@@ -106,6 +107,7 @@ private fun RetroTVApp(
         val program = playlist?.let { ChannelScheduleCalculator.currentProgram(it) } ?: return false
 
         playerChannelName = channel.name
+        playerLogoPath = channel.logoPath
         playerItems = playlist
         playerStartIndex = program.itemIndex
         playerStartOffsetMs = program.offsetMs
@@ -225,6 +227,7 @@ private fun RetroTVApp(
 
         AppScreen.PLAYER -> PlayerScreen(
             channelName = playerChannelName,
+            logoPath = playerLogoPath,
             items = playerItems,
             startIndex = playerStartIndex,
             startOffsetMs = playerStartOffsetMs,
