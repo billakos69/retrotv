@@ -90,6 +90,8 @@ private fun RetroTVApp(
         }
     }
 
+    // Tunes to channels[index] specifically (no wandering to a neighbor).
+    // On success, also remembers it as "last watched" for next app launch.
     suspend fun tuneExactChannel(channels: List<ChannelEntity>, index: Int): Boolean {
         if (index !in channels.indices) return false
         val channel = channels[index]
@@ -112,9 +114,12 @@ private fun RetroTVApp(
         playerStartIndex = program.itemIndex
         playerStartOffsetMs = program.offsetMs
         currentChannelIndex = index
+        withContext(Dispatchers.IO) { settingsRepository.setLastChannelId(channel.id) }
         return true
     }
 
+    // Tunes to the first channel with content, walking outward from
+    // startIndex in direction, wrapping around the list.
     suspend fun tunePlayableChannel(channels: List<ChannelEntity>, startIndex: Int, direction: Int): Boolean {
         if (channels.isEmpty()) return false
         var index = startIndex
@@ -130,7 +135,15 @@ private fun RetroTVApp(
         scope.launch {
             val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
             channelList = channels
-            val found = tunePlayableChannel(channels, 0, 1)
+
+            val lastId = withContext(Dispatchers.IO) { settingsRepository.lastChannelId.first() }
+            val lastIndex = lastId?.let { id -> channels.indexOfFirst { it.id == id } } ?: -1
+
+            val found = if (lastIndex >= 0 && tuneExactChannel(channels, lastIndex)) {
+                true
+            } else {
+                tunePlayableChannel(channels, 0, 1)
+            }
             if (found) screen = AppScreen.PLAYER
         }
     }
