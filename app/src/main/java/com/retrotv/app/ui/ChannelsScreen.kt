@@ -11,8 +11,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,9 +26,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.Text
 import com.retrotv.app.data.LibraryRepository
@@ -52,6 +59,7 @@ fun ChannelsScreen(
     val backFocusRequester = remember { FocusRequester() }
     val channels by repository.observeChannels().collectAsState(initial = emptyList())
     var isSyncing by remember { mutableStateOf(false) }
+    var renamingChannel by remember { mutableStateOf<ChannelEntity?>(null) }
 
     LaunchedEffect(Unit) {
         backFocusRequester.requestFocus()
@@ -111,6 +119,7 @@ fun ChannelsScreen(
                                 channel = channel,
                                 isFirst = index == 0,
                                 isLast = index == channels.lastIndex,
+                                onRename = { renamingChannel = channel },
                                 onMoveUp = {
                                     scope.launch {
                                         withContext(Dispatchers.IO) {
@@ -138,6 +147,20 @@ fun ChannelsScreen(
                 }
             }
         }
+
+        val toRename = renamingChannel
+        if (toRename != null) {
+            RenameDialog(
+                channel = toRename,
+                onDismiss = { renamingChannel = null },
+                onConfirm = { newName ->
+                    scope.launch {
+                        withContext(Dispatchers.IO) { repository.renameChannel(toRename, newName) }
+                        renamingChannel = null
+                    }
+                }
+            )
+        }
     }
 }
 
@@ -146,6 +169,7 @@ private fun ChannelRow(
     channel: ChannelEntity,
     isFirst: Boolean,
     isLast: Boolean,
+    onRename: () -> Unit,
     onMoveUp: () -> Unit,
     onMoveDown: () -> Unit,
     onDelete: () -> Unit
@@ -179,6 +203,9 @@ private fun ChannelRow(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            RetroButton(onClick = onRename) {
+                Text(text = "RENAME", style = MaterialTheme.typography.labelLarge)
+            }
             if (!isFirst) {
                 RetroButton(onClick = onMoveUp) {
                     Text(text = "UP", style = MaterialTheme.typography.labelLarge)
@@ -223,6 +250,69 @@ private fun ChannelLogo(logoPath: String?) {
             Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize())
         } else {
             Text(text = "?", color = TvAccentAmber, style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun RenameDialog(
+    channel: ChannelEntity,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember(channel.id) { mutableStateOf(channel.name) }
+    val fieldFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        fieldFocusRequester.requestFocus()
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xCC000000)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .background(TvSurface)
+                .padding(24.dp)
+        ) {
+            Text(
+                text = "RENAME CHANNEL",
+                style = MaterialTheme.typography.titleMedium,
+                color = TvAccentGreen
+            )
+
+            Box(
+                modifier = Modifier
+                    .padding(top = 16.dp)
+                    .background(TvBackground)
+                    .padding(12.dp)
+            ) {
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = TvTextPrimary, fontSize = 18.sp),
+                    cursorBrush = SolidColor(TvAccentGreen),
+                    modifier = Modifier
+                        .focusRequester(fieldFocusRequester)
+                        .width(320.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.padding(top = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                RetroButton(onClick = onDismiss) {
+                    Text(text = "CANCEL", style = MaterialTheme.typography.labelLarge)
+                }
+                RetroButton(onClick = { if (text.isNotBlank()) onConfirm(text) }) {
+                    Text(text = "SAVE", style = MaterialTheme.typography.labelLarge)
+                }
+            }
         }
     }
 }
