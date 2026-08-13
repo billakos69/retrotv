@@ -10,19 +10,10 @@ import com.retrotv.app.data.db.SeriesEntity
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 
-/**
- * Bridges the on-disk LibraryScanner with the Room database.
- */
 class LibraryRepository(private val db: RetroTvDatabase) {
 
     fun observeChannels(): Flow<List<ChannelEntity>> = db.channelDao().getAll()
 
-    /**
-     * Flat, ordered list of every episode belonging to [channelId], across
-     * all of its series — series in name order, episodes within a series in
-     * their scanned (natural-sorted) order. This is the "channel playlist"
-     * base that ChannelPlaylistBuilder mixes ads/jingles into.
-     */
     suspend fun getEpisodesForChannel(channelId: Long): List<EpisodeEntity> {
         val seriesList: List<SeriesEntity> = db.seriesDao().getForChannel(channelId).first()
         return seriesList.flatMap { series ->
@@ -30,24 +21,10 @@ class LibraryRepository(private val db: RetroTvDatabase) {
         }
     }
 
-    /**
-     * One-shot snapshot of the shared Ads/ pool, for building a channel's
-     * playlist. Ads aren't per-channel — every channel draws from the same
-     * pool, same as a real local station rotating the same commercial breaks.
-     */
     suspend fun getAdsOnce(): List<AdEntity> = db.adDao().getAll().first()
 
-    /**
-     * One-shot snapshot of the shared Jingles/ (station ID) pool.
-     */
     suspend fun getJinglesOnce(): List<JingleEntity> = db.jingleDao().getAll().first()
 
-    /**
-     * Re-scans [rootPath] on disk and replaces the database contents with what
-     * is found there. Per-episode watch progress (lastPositionMs / watched) is
-     * preserved across a re-scan by matching on the episode's absolute file
-     * path, so re-scanning doesn't reset "resume watching" state.
-     */
     suspend fun syncFromDisk(rootPath: String) {
         val library = LibraryScanner.scan(rootPath)
         val previousEpisodes = db.episodeDao().getAllOnce()
@@ -128,5 +105,14 @@ class LibraryRepository(private val db: RetroTvDatabase) {
 
     suspend fun updateEpisodeProgress(episodeId: Long, positionMs: Long, watched: Boolean) {
         db.episodeDao().updateProgress(episodeId, positionMs, watched)
+    }
+
+    // Renames a channel in place (its DB row only — the on-disk folder name
+    // is untouched, so a future RESCAN LIBRARY will bring the folder name
+    // back unless the disk folder itself is also renamed).
+    suspend fun renameChannel(channel: ChannelEntity, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        db.channelDao().update(channel.copy(name = trimmed))
     }
 }
