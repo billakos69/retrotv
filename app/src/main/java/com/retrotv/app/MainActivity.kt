@@ -19,7 +19,6 @@ import androidx.tv.material3.Text
 import com.retrotv.app.data.LibraryRepository
 import com.retrotv.app.data.SettingsRepository
 import com.retrotv.app.data.db.ChannelEntity
-import com.retrotv.app.data.db.EpisodeEntity
 import com.retrotv.app.data.db.RetroTvDatabase
 import com.retrotv.app.data.schedule.ChannelPlaylistBuilder
 import com.retrotv.app.data.schedule.ChannelScheduleCalculator
@@ -77,6 +76,9 @@ private fun RetroTVApp(
     var playerStartIndex by remember { mutableStateOf(0) }
     var playerStartOffsetMs by remember { mutableStateOf(0L) }
 
+    var channelList by remember { mutableStateOf<List<ChannelEntity>>(emptyList()) }
+    var currentChannelIndex by remember { mutableStateOf(0) }
+
     fun refreshFromStorage(path: String?) {
         folderPath = path
         screen = if (StorageUtils.isFolderAccessible(path)) {
@@ -87,37 +89,61 @@ private fun RetroTVApp(
         }
     }
 
-    fun startWatchingLiveChannel() {
-        scope.launch {
-            val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
+    /**
+     * Tunes into the first channel found (walking outward from [startIndex] in
+     * [direction]) that actually has episodes, wrapping around the list.
+     * Updates the player state (channel name/playlist/live start position)
+     * and [currentChannelIndex] on success. Returns false if no channel in
+     * [channels] has any playable content.
+     */
+    suspend fun tunePlayableChannel(channels: List<ChannelEntity>, startIndex: Int, direction: Int): Boolean {
+        if (channels.isEmpty()) return false
+        var index = startIndex
+        repeat(channels.size) {
+            val normalizedIndex = ((index % channels.size) + channels.size) % channels.size
+            val channel = channels[normalizedIndex]
 
-            val match: Pair<ChannelEntity, List<EpisodeEntity>>? = withContext(Dispatchers.IO) {
-                var found: Pair<ChannelEntity, List<EpisodeEntity>>? = null
-                for (channel in channels) {
-                    val episodes = libraryRepository.getEpisodesForChannel(channel.id)
-                    if (episodes.isNotEmpty()) {
-                        found = channel to episodes
-                        break
-                    }
-                }
-                found
-            }
-
-            if (match != null) {
-                val (channel, episodes) = match
-                val playlist = withContext(Dispatchers.IO) {
+            val playlist = withContext(Dispatchers.IO) {
+                val episodes = libraryRepository.getEpisodesForChannel(channel.id)
+                if (episodes.isEmpty()) {
+                    null
+                } else {
                     val ads = libraryRepository.getAdsOnce()
                     val jingles = libraryRepository.getJinglesOnce()
                     ChannelPlaylistBuilder.build(episodes, ads, jingles)
                 }
-                val program = ChannelScheduleCalculator.currentProgram(playlist) ?: return@launch
-                playerChannelName = channel.name
-                playerItems = playlist
-                playerStartIndex = program.itemIndex
-                playerStartOffsetMs = program.offsetMs
-                screen = AppScreen.PLAYER
             }
+
+            if (playlist != null) {
+                val program = ChannelScheduleCalculator.currentProgram(playlist)
+                if (program != null) {
+                    playerChannelName = channel.name
+                    playerItems = playlist
+                    playerStartIndex = program.itemIndex
+                    playerStartOffsetMs = program.offsetMs
+                    currentChannelIndex = normalizedIndex
+                    return true
+                }
+            }
+            index += direction
+        }
+        return false
+    }
+
+    fun startWatchingLiveChannel() {
+        scope.launch {
+            val channels = withContext(Dispatchers.IO) { libraryRepository.observeChannels().first() }
+            channelList = channels
+            val found = tunePlayableChannel(channels, 0, 1)
+            if (found) screen = AppScreen.PLAYER
             // else: no playable content found yet — stays on the main menu.
+        }
+    }
+
+    fun switchChannel(direction: Int) {
+        if (channelList.isEmpty()) return
+        scope.launch {
+            tunePlayableChannel(channelList, currentChannelIndex + direction, direction)
         }
     }
 
@@ -198,6 +224,8 @@ private fun RetroTVApp(
                     }
                 }
             },
+            onChannelUp = { switchChannel(1) },
+            onChannelDown = { switchChannel(-1) },
             onBack = { screen = AppScreen.MAIN_MENU }
         )
     }
