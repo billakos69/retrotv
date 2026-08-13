@@ -1,13 +1,17 @@
 package com.retrotv.app.ui
 
+import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -37,8 +43,11 @@ import com.retrotv.app.data.schedule.ScheduleItem
 import com.retrotv.app.ui.theme.TvAccentAmber
 import com.retrotv.app.ui.theme.TvAccentGreen
 import com.retrotv.app.ui.theme.TvBackground
+import com.retrotv.app.ui.theme.TvSurface
 import com.retrotv.app.ui.theme.TvTextSecondary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
@@ -51,14 +60,12 @@ import java.io.File
  * watch-progress to persist).
  *
  * [onChannelUp] / [onChannelDown] are triggered by the remote's dedicated
- * CHANNEL UP/DOWN keys and, as a fallback, by D-pad UP/DOWN — the caller
- * (MainActivity) is responsible for picking the next/previous channel and
- * passing down a new [items]/[startIndex]/[startOffsetMs], which naturally
- * restarts playback on the new channel.
+ * CHANNEL UP/DOWN keys and, as a fallback, by D-pad UP/DOWN.
  */
 @Composable
 fun PlayerScreen(
     channelName: String,
+    logoPath: String?,
     items: List<ScheduleItem>,
     startIndex: Int,
     startOffsetMs: Long,
@@ -87,8 +94,6 @@ fun PlayerScreen(
         val mediaItems = items.map { MediaItem.fromUri(Uri.fromFile(File(it.filePath))) }
         val safeStartIndex = startIndex.coerceIn(0, (mediaItems.size - 1).coerceAtLeast(0))
 
-        // A real channel never "ends" — loop the playlist so it behaves like
-        // a continuous broadcast instead of stopping after the last item.
         exoPlayer.repeatMode = Player.REPEAT_MODE_ALL
         exoPlayer.setMediaItems(mediaItems, safeStartIndex, startOffsetMs.coerceAtLeast(0L))
         exoPlayer.prepare()
@@ -99,7 +104,6 @@ fun PlayerScreen(
                 val previousIndex = currentIndex
                 currentIndex = exoPlayer.currentMediaItemIndex
                 if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
-                    // The previous item played through to the end naturally.
                     reportProgressIfEpisode(previousIndex, 0L, true)
                 }
             }
@@ -107,16 +111,12 @@ fun PlayerScreen(
         exoPlayer.addListener(listener)
 
         onDispose {
-            // Remember exactly where playback was left, in case this episode
-            // gets resumed later.
             reportProgressIfEpisode(currentIndex, exoPlayer.currentPosition, false)
             exoPlayer.removeListener(listener)
             exoPlayer.release()
         }
     }
 
-    // Periodic checkpoint so progress survives a crash/force-close, not just
-    // a clean back-navigation.
     LaunchedEffect(items, startIndex, startOffsetMs) {
         while (true) {
             delay(5000)
@@ -156,30 +156,56 @@ fun PlayerScreen(
             modifier = Modifier.fillMaxSize()
         )
 
-        Column(
+        Row(
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(24.dp)
+                .padding(24.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = channelName.uppercase(),
-                style = MaterialTheme.typography.titleMedium,
-                color = TvAccentGreen
-            )
-            val current = items.getOrNull(currentIndex)
-            if (current != null) {
+            PlayerLogo(logoPath = logoPath)
+
+            Column(modifier = Modifier.padding(start = 12.dp)) {
                 Text(
-                    text = labelFor(current),
-                    style = MaterialTheme.typography.labelLarge,
-                    color = TvAccentAmber
+                    text = channelName.uppercase(),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TvAccentGreen
                 )
-                Text(
-                    text = current.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = TvTextSecondary
-                )
+                val current = items.getOrNull(currentIndex)
+                if (current != null) {
+                    Text(
+                        text = labelFor(current),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = TvAccentAmber
+                    )
+                    Text(
+                        text = current.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = TvTextSecondary
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun PlayerLogo(logoPath: String?) {
+    if (logoPath == null) return
+
+    var bitmap by remember(logoPath) { mutableStateOf<ImageBitmap?>(null) }
+
+    LaunchedEffect(logoPath) {
+        bitmap = withContext(Dispatchers.IO) {
+            runCatching { BitmapFactory.decodeFile(logoPath)?.asImageBitmap() }.getOrNull()
+        }
+    }
+
+    val bmp = bitmap ?: return
+    Box(
+        modifier = Modifier.size(56.dp).background(TvSurface),
+        contentAlignment = Alignment.Center
+    ) {
+        Image(bitmap = bmp, contentDescription = null, modifier = Modifier.fillMaxSize())
     }
 }
 
